@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:awesome_notifications/awesome_notifications.dart';
 import '../database/storage_service.dart';
 import '../models/medicamento.dart';
 import '../models/historico_ingestao.dart';
@@ -23,13 +21,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadDados();
-    if (!kIsWeb) {
-      AwesomeNotifications().isNotificationAllowed().then((isAllowed) {
-        if (!isAllowed) {
-          AwesomeNotifications().requestPermissionToSendNotifications();
-        }
-      });
-    }
   }
 
   void _loadDados() {
@@ -59,42 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Medicamentos do Dia'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              child: const Text(
-                'Menu',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Home'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.local_pharmacy),
-              title: const Text('Farmácias abertas agora'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                );
-              },
-            ),
-          ],
-        ),
       ),
       body: FutureBuilder(
         future: Future.wait([_medicamentosFuture, _historicoFuture]),
@@ -193,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         icon: const Icon(Icons.add),
         label: const Text('Adicionar'),
-      ),
+-      ),
     );
   }
 }
