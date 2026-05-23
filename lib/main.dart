@@ -1,28 +1,57 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:awesome_notifications/awesome_notifications.dart';
+import 'screens/home_screen.dart';
+import 'database/memory_storage_service.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (!kIsWeb) {
+    AwesomeNotifications().initialize(
+      null,
+      [
+        NotificationChannel(
+          channelKey: 'alerts',
+          channelName: 'Alertas de Medicamentos',
+          channelDescription: 'Notificações para lembretes de medicamentos',
+          defaultColor: const Color.fromRGBO(147, 207, 184, 1),
+          ledColor: Colors.white,
+          importance: NotificationImportance.High,
+          channelShowBadge: true,
+          playSound: true,
+          enableVibration: true,
+        )
+      ],
+      debug: true
+    );
+  }
+
+  final storage = MemoryStorageService();
+  await storage.init();
+  runApp(MyApp(storage: storage));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final MemoryStorageService storage;
+
+  const MyApp({super.key, required this.storage});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Hello World App',
+      title: 'Lembrete de Medicamentos',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color.fromRGBO(147, 207, 184, 1),
+        ),
         useMaterial3: true,
-      ),
-      home: const Scaffold(
-        body: Center(
-          child: Text(
-            'Hello World',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
         ),
       ),
+      home: HomeScreen(storage: storage),
     );
   }
 }
