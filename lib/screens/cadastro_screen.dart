@@ -3,11 +3,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../database/storage_service.dart';
+import '../models/medicamento.dart';
 
 class CadastroScreen extends StatefulWidget {
   final StorageService storage;
+  final Medicamento? medicamento;
 
-  const CadastroScreen({super.key, required this.storage});
+  const CadastroScreen({super.key, required this.storage, this.medicamento});
 
   @override
   State<CadastroScreen> createState() => _CadastroScreenState();
@@ -65,6 +67,13 @@ class _CadastroScreenState extends State<CadastroScreen> {
       
       try {
         await widget.storage.insertMedicamento(
+      int id;
+      final isEditing = widget.medicamento != null;
+      
+      if (isEditing) {
+        id = widget.medicamento!.id;
+        await widget.storage.updateMedicamento(
+          id,
           _nomeController.text,
           _dosagemController.text,
           _frequenciaSelecionada,
@@ -131,6 +140,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.medicamento != null;
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
@@ -138,6 +148,8 @@ class _CadastroScreenState extends State<CadastroScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.teal.shade900),
+        title: Text(isEditing ? 'Editar Medicamento' : 'Novo Medicamento'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -242,6 +254,10 @@ class _CadastroScreenState extends State<CadastroScreen> {
                   elevation: 4,
                 ),
                 child: Text('Salvar Medicamento', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold)),
+                child: Text(
+                  isEditing ? 'Salvar Alterações' : 'Salvar Medicamento',
+                  style: const TextStyle(fontSize: 16),
+                ),
               ),
             ],
           ),

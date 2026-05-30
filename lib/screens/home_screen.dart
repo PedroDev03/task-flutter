@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:awesome_notifications/awesome_notifications.dart';
 import '../database/storage_service.dart';
 import '../models/medicamento.dart';
 import '../models/historico_ingestao.dart';
@@ -133,6 +135,52 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
+  void _editarMedicamento(Medicamento med) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CadastroScreen(
+          storage: widget.storage,
+          medicamento: med,
+        ),
+      ),
+    );
+    if (result == true) {
+      _loadDados();
+    }
+  }
+
+  void _confirmarExclusao(Medicamento med) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirmar Exclusão'),
+          content: Text('Tem certeza de que deseja excluir o medicamento "${med.nome}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                Navigator.pop(context);
+                await widget.storage.deleteMedicamento(med.id);
+                if (!kIsWeb) {
+                  await AwesomeNotifications().cancel(med.id);
+                }
+                _loadDados();
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(content: Text('"${med.nome}" foi excluído.')),
+                );
+              },
+              child: const Text('Excluir', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -264,6 +312,46 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       )
+                          child: const Text('Tomar'),
+                        )
+                      else
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8.0),
+                          child: Text('Tomado', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                        ),
+                      const SizedBox(width: 8),
+                      PopupMenuButton<String>(
+                        icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                        onSelected: (value) {
+                          if (value == 'editar') {
+                            _editarMedicamento(med);
+                          } else if (value == 'excluir') {
+                            _confirmarExclusao(med);
+                          }
+                        },
+                        itemBuilder: (BuildContext context) => [
+                          const PopupMenuItem<String>(
+                            value: 'editar',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit, color: Colors.blue, size: 20),
+                                SizedBox(width: 8),
+                                Text('Editar'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem<String>(
+                            value: 'excluir',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete, color: Colors.red, size: 20),
+                                SizedBox(width: 8),
+                                Text('Excluir'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -285,6 +373,8 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.teal.shade700,
         icon: const Icon(Icons.add, color: Colors.white),
         label: Text('Adicionar', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+        icon: const Icon(Icons.add),
+        label: const Text('Adicionar'),
       ),
     );
   }
