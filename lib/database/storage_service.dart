@@ -6,8 +6,8 @@ abstract class StorageService {
   Future<void> init();
 
   Future<List<Medicamento>> getMedicamentos();
-  Future<int> insertMedicamento(String nome, String dosagem, String frequencia, String horarioProgramado);
-  Future<void> updateMedicamento(int id, String nome, String dosagem, String frequencia, String horarioProgramado);
+  Future<void> insertMedicamento(String nome, String dosagem, String frequencia, String horarioProgramado);
+  Future<void> updateMedicamento(int id, String nome, String dosagem, String frequencia, String horarioProgramado, bool ativo);
   Future<void> updateMedicamentoStatus(int id, bool ativo);
   Future<void> deleteMedicamento(int id);
 

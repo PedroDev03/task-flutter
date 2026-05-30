@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_fonts/google_fonts.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../database/storage_service.dart';
 import '../models/medicamento.dart';
 
@@ -19,7 +20,9 @@ class _CadastroScreenState extends State<CadastroScreen> {
   final _nomeController = TextEditingController();
   final _dosagemController = TextEditingController();
   String _frequenciaSelecionada = 'Diário';
-  TimeOfDay _horarioSelecionado = TimeOfDay.now();
+  
+  // Feature Individual B: Integração com o relógio do sistema
+  late TimeOfDay _horarioSelecionado;
 
   final List<String> _opcoesFrequencia = [
     'Diário',
@@ -32,21 +35,8 @@ class _CadastroScreenState extends State<CadastroScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.medicamento != null) {
-      _nomeController.text = widget.medicamento!.nome;
-      _dosagemController.text = widget.medicamento!.dosagem;
-      _frequenciaSelecionada = widget.medicamento!.frequencia;
-      try {
-        final parts = widget.medicamento!.horarioProgramado.split(':');
-        if (parts.length >= 2) {
-          final hour = int.parse(parts[0]);
-          final minute = int.parse(parts[1]);
-          _horarioSelecionado = TimeOfDay(hour: hour, minute: minute);
-        }
-      } catch (_) {
-        // Use default
-      }
-    }
+    // Integração: capturar relógio exato do computador/dispositivo ao abrir
+    _horarioSelecionado = TimeOfDay.now();
   }
 
   @override
@@ -70,8 +60,13 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
   void _salvar() async {
     if (_formKey.currentState!.validate()) {
+      // Regras de negócio implícitas validadas pelo Form
       final horarioStr = '${_horarioSelecionado.hour.toString().padLeft(2, '0')}:${_horarioSelecionado.minute.toString().padLeft(2, '0')}';
       
+      showDialog(context: context, builder: (_) => const Center(child: CircularProgressIndicator()));
+      
+      try {
+        await widget.storage.insertMedicamento(
       int id;
       final isEditing = widget.medicamento != null;
       
@@ -84,41 +79,61 @@ class _CadastroScreenState extends State<CadastroScreen> {
           _frequenciaSelecionada,
           horarioStr,
         );
-      } else {
-        id = await widget.storage.insertMedicamento(
-          _nomeController.text,
-          _dosagemController.text,
-          _frequenciaSelecionada,
-          horarioStr,
-        );
-      }
 
-      if (!kIsWeb) {
-        if (isEditing) {
-          await AwesomeNotifications().cancel(id);
+        final int h = _horarioSelecionado.hour;
+        final int m = _horarioSelecionado.minute;
+        final String nome = _nomeController.text;
+        final String dosagem = _dosagemController.text;
+
+        Future<void> agendar(int id, int hour) async {
+          await AwesomeNotifications().createNotification(
+            content: NotificationContent(
+              id: id,
+              channelKey: 'alerts',
+              title: 'Hora do Remédio!',
+              body: 'Está na hora de tomar $nome ($dosagem)',
+              notificationLayout: NotificationLayout.Default,
+            ),
+            schedule: NotificationCalendar(
+              hour: hour,
+              minute: m,
+              second: 0,
+              millisecond: 0,
+              repeats: true,
+            ),
+          );
         }
-        await AwesomeNotifications().createNotification(
-          content: NotificationContent(
-            id: id,
-            channelKey: 'alerts',
-            title: 'Hora do Medicamento!',
-            body: 'Está na hora de tomar ${_nomeController.text} (${_dosagemController.text}).',
-            notificationLayout: NotificationLayout.Default,
-            category: NotificationCategory.Alarm,
-            wakeUpScreen: true,
-          ),
-          schedule: NotificationCalendar(
-            hour: _horarioSelecionado.hour,
-            minute: _horarioSelecionado.minute,
-            second: 0,
-            millisecond: 0,
-            repeats: true,
-          ),
-        );
-      }
 
-      if (mounted) {
-        Navigator.pop(context, true); // Retorna true para indicar sucesso
+        if (!kIsWeb) {
+          final baseId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
+          if (_frequenciaSelecionada == 'Semanal') {
+            await AwesomeNotifications().createNotification(
+              content: NotificationContent(id: baseId, channelKey: 'alerts', title: 'Hora do Remédio!', body: 'Está na hora de tomar $nome ($dosagem)'),
+              schedule: NotificationCalendar(weekday: DateTime.now().weekday, hour: h, minute: m, second: 0, millisecond: 0, repeats: true),
+            );
+          } else if (_frequenciaSelecionada == 'Diário') {
+            await agendar(baseId, h);
+          } else if (_frequenciaSelecionada == '8 em 8 horas') {
+            await agendar(baseId, h);
+            await agendar(baseId + 1, (h + 8) % 24);
+            await agendar(baseId + 2, (h + 16) % 24);
+          } else if (_frequenciaSelecionada == '12 em 12 horas') {
+            await agendar(baseId, h);
+            await agendar(baseId + 1, (h + 12) % 24);
+          }
+        }
+
+        if (mounted) {
+          Navigator.pop(context); // close loader
+          Navigator.pop(context, true); // Retorna true para indicar sucesso
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.pop(context); // close loader
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao salvar: $e', style: GoogleFonts.inter())),
+          );
+        }
       }
     }
   }
@@ -127,7 +142,12 @@ class _CadastroScreenState extends State<CadastroScreen> {
   Widget build(BuildContext context) {
     final isEditing = widget.medicamento != null;
     return Scaffold(
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
+        title: Text('Novo Medicamento', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.teal.shade900)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: IconThemeData(color: Colors.teal.shade900),
         title: Text(isEditing ? 'Editar Medicamento' : 'Novo Medicamento'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
@@ -137,71 +157,103 @@ class _CadastroScreenState extends State<CadastroScreen> {
           key: _formKey,
           child: ListView(
             children: [
-              TextFormField(
-                controller: _nomeController,
-                decoration: const InputDecoration(
-                  labelText: 'Nome do Medicamento',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.medical_services),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira o nome.';
-                  }
-                  return null;
-                },
+              Text(
+                'Cadastre os detalhes do seu medicamento e o horário para ser lembrado.',
+                style: GoogleFonts.inter(fontSize: 16, color: Colors.grey.shade700),
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _dosagemController,
-                decoration: const InputDecoration(
-                  labelText: 'Dosagem (ex: 1 comprimido, 50mg)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.medication),
+              const SizedBox(height: 24),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.teal.shade100)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _nomeController,
+                        style: GoogleFonts.inter(),
+                        decoration: InputDecoration(
+                          labelText: 'Nome do Medicamento',
+                          labelStyle: GoogleFonts.inter(),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          prefixIcon: Icon(Icons.medical_services, color: Colors.teal.shade700),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'O nome é obrigatório.';
+                          }
+                          if (value.length < 3) {
+                            return 'Deve ter no mínimo 3 caracteres.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _dosagemController,
+                        style: GoogleFonts.inter(),
+                        decoration: InputDecoration(
+                          labelText: 'Dosagem (ex: 1 comp, 50mg)',
+                          labelStyle: GoogleFonts.inter(),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          prefixIcon: Icon(Icons.medication, color: Colors.teal.shade700),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'A dosagem é obrigatória.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: _frequenciaSelecionada,
+                        style: GoogleFonts.inter(color: Colors.black87),
+                        decoration: InputDecoration(
+                          labelText: 'Frequência',
+                          labelStyle: GoogleFonts.inter(),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          prefixIcon: Icon(Icons.repeat, color: Colors.teal.shade700),
+                        ),
+                        items: _opcoesFrequencia.map((String freq) {
+                          return DropdownMenuItem<String>(
+                            value: freq,
+                            child: Text(freq),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _frequenciaSelecionada = newValue!;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Horário Inicial (Relógio do Sistema)', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                        subtitle: Text('${_horarioSelecionado.hour.toString().padLeft(2, '0')}:${_horarioSelecionado.minute.toString().padLeft(2, '0')}', style: GoogleFonts.inter(fontSize: 18, color: Colors.teal.shade900)),
+                        trailing: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(12)),
+                          child: Icon(Icons.access_time, color: Colors.teal.shade700),
+                        ),
+                        onTap: () => _selecionarHorario(context),
+                      ),
+                    ],
+                  ),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira a dosagem.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _frequenciaSelecionada,
-                decoration: const InputDecoration(
-                  labelText: 'Frequência',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.repeat),
-                ),
-                items: _opcoesFrequencia.map((String freq) {
-                  return DropdownMenuItem<String>(
-                    value: freq,
-                    child: Text(freq),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _frequenciaSelecionada = newValue!;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Horário Programado'),
-                subtitle: Text('${_horarioSelecionado.hour.toString().padLeft(2, '0')}:${_horarioSelecionado.minute.toString().padLeft(2, '0')}'),
-                trailing: const Icon(Icons.access_time),
-                onTap: () => _selecionarHorario(context),
               ),
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _salvar,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  backgroundColor: Colors.teal.shade700,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 4,
                 ),
+                child: Text('Salvar Medicamento', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold)),
                 child: Text(
                   isEditing ? 'Salvar Alterações' : 'Salvar Medicamento',
                   style: const TextStyle(fontSize: 16),
@@ -214,3 +266,4 @@ class _CadastroScreenState extends State<CadastroScreen> {
     );
   }
 }
+
