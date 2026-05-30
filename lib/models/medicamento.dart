@@ -1,5 +1,3 @@
-import 'package:postgres/postgres.dart';
-
 class Medicamento {
   final int id;
   final String nome;
@@ -7,6 +5,8 @@ class Medicamento {
   final String frequencia;
   final String horarioProgramado;
   final bool ativo;
+  final String? usuarioId;
+  final DateTime dataCriacao;
 
   Medicamento({
     required this.id,
@@ -15,18 +15,34 @@ class Medicamento {
     required this.frequencia,
     required this.horarioProgramado,
     required this.ativo,
+    this.usuarioId,
+    required this.dataCriacao,
   });
 
-  factory Medicamento.fromPostgresRow(ResultRow row) {
-    // Usando toColumnMap() para mapear os dados corretamente pelo nome da coluna
-    final map = row.toColumnMap();
+  factory Medicamento.fromJson(Map<String, dynamic> json) {
     return Medicamento(
-      id: map['id'] as int,
-      nome: map['nome'] as String,
-      dosagem: map['dosagem'] as String,
-      frequencia: map['frequencia'] as String? ?? 'Diário',
-      horarioProgramado: map['horario_programado'].toString(),
-      ativo: map['ativo'] as bool? ?? false,
+      id: json['id'] as int,
+      nome: json['nome'] as String,
+      dosagem: json['dosagem'] as String,
+      frequencia: json['frequencia'] as String? ?? 'Diário',
+      horarioProgramado: json['horario_programado'].toString(),
+      ativo: json['ativo'] as bool? ?? false,
+      usuarioId: json['usuario_id'] as String?,
+      dataCriacao: json['data_criacao'] != null 
+          ? DateTime.parse(json['data_criacao']) 
+          : DateTime.now(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'nome': nome,
+      'dosagem': dosagem,
+      'frequencia': frequencia,
+      'horario_programado': horarioProgramado,
+      'ativo': ativo,
+      if (usuarioId != null) 'usuario_id': usuarioId,
+      // Não enviamos data_criacao se for automático no BD, ou podemos enviar.
+    };
   }
 }
