@@ -9,22 +9,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hello_world/main.dart';
+import 'package:hello_world/database/memory_storage_service.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('Medication reminder smoke test', (WidgetTester tester) async {
+    final storage = MemoryStorageService();
+    await storage.init();
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpAndSettle();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that our medications are listed on the home screen.
+    expect(find.text('Medicamentos do Dia'), findsOneWidget);
+    expect(find.text('Paracetamol 750mg'), findsOneWidget);
+    expect(find.text('Ibuprofeno 600mg'), findsOneWidget);
   });
 }

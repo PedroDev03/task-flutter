@@ -67,8 +67,33 @@ class MemoryStorageService implements StorageService {
   }
 
   @override
-  Future<void> insertMedicamento(String nome, String dosagem, String frequencia, String horarioProgramado) async {
-    _addMedicamento(nome, dosagem, frequencia, horarioProgramado);
+  Future<int> insertMedicamento(String nome, String dosagem, String frequencia, String horarioProgramado) async {
+    final id = _nextMedicamentoId++;
+    _medicamentos.add(Medicamento(
+      id: id,
+      nome: nome,
+      dosagem: dosagem,
+      frequencia: frequencia,
+      horarioProgramado: horarioProgramado,
+      ativo: true,
+    ));
+    return id;
+  }
+
+  @override
+  Future<void> updateMedicamento(int id, String nome, String dosagem, String frequencia, String horarioProgramado) async {
+    final index = _medicamentos.indexWhere((m) => m.id == id);
+    if (index != -1) {
+      final old = _medicamentos[index];
+      _medicamentos[index] = Medicamento(
+        id: old.id,
+        nome: nome,
+        dosagem: dosagem,
+        frequencia: frequencia,
+        horarioProgramado: horarioProgramado,
+        ativo: old.ativo,
+      );
+    }
   }
 
   @override

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:awesome_notifications/awesome_notifications.dart';
-import 'dart:math';
 import '../database/storage_service.dart';
+import '../models/medicamento.dart';
 
 class CadastroScreen extends StatefulWidget {
   final StorageService storage;
+  final Medicamento? medicamento;
 
-  const CadastroScreen({super.key, required this.storage});
+  const CadastroScreen({super.key, required this.storage, this.medicamento});
 
   @override
   State<CadastroScreen> createState() => _CadastroScreenState();
@@ -27,6 +28,26 @@ class _CadastroScreenState extends State<CadastroScreen> {
     'Semanal',
     'Necessidade (SOS)'
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.medicamento != null) {
+      _nomeController.text = widget.medicamento!.nome;
+      _dosagemController.text = widget.medicamento!.dosagem;
+      _frequenciaSelecionada = widget.medicamento!.frequencia;
+      try {
+        final parts = widget.medicamento!.horarioProgramado.split(':');
+        if (parts.length >= 2) {
+          final hour = int.parse(parts[0]);
+          final minute = int.parse(parts[1]);
+          _horarioSelecionado = TimeOfDay(hour: hour, minute: minute);
+        }
+      } catch (_) {
+        // Use default
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -50,18 +71,35 @@ class _CadastroScreenState extends State<CadastroScreen> {
   void _salvar() async {
     if (_formKey.currentState!.validate()) {
       final horarioStr = '${_horarioSelecionado.hour.toString().padLeft(2, '0')}:${_horarioSelecionado.minute.toString().padLeft(2, '0')}';
-      await widget.storage.insertMedicamento(
-        _nomeController.text,
-        _dosagemController.text,
-        _frequenciaSelecionada,
-        horarioStr,
-      );
+      
+      int id;
+      final isEditing = widget.medicamento != null;
+      
+      if (isEditing) {
+        id = widget.medicamento!.id;
+        await widget.storage.updateMedicamento(
+          id,
+          _nomeController.text,
+          _dosagemController.text,
+          _frequenciaSelecionada,
+          horarioStr,
+        );
+      } else {
+        id = await widget.storage.insertMedicamento(
+          _nomeController.text,
+          _dosagemController.text,
+          _frequenciaSelecionada,
+          horarioStr,
+        );
+      }
 
       if (!kIsWeb) {
-        int notificationId = Random().nextInt(100000);
+        if (isEditing) {
+          await AwesomeNotifications().cancel(id);
+        }
         await AwesomeNotifications().createNotification(
           content: NotificationContent(
-            id: notificationId,
+            id: id,
             channelKey: 'alerts',
             title: 'Hora do Medicamento!',
             body: 'Está na hora de tomar ${_nomeController.text} (${_dosagemController.text}).',
@@ -87,9 +125,10 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.medicamento != null;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Novo Medicamento'),
+        title: Text(isEditing ? 'Editar Medicamento' : 'Novo Medicamento'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Padding(
@@ -163,7 +202,10 @@ class _CadastroScreenState extends State<CadastroScreen> {
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 ),
-                child: const Text('Salvar Medicamento', style: TextStyle(fontSize: 16)),
+                child: Text(
+                  isEditing ? 'Salvar Alterações' : 'Salvar Medicamento',
+                  style: const TextStyle(fontSize: 16),
+                ),
               ),
             ],
           ),
