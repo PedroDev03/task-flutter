@@ -1,8 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 
-void main() {
-  test('Dummy test to ensure test runner passes', () {
-    expect(true, true);
 import 'package:hello_world/main.dart';
 import 'package:hello_world/database/memory_storage_service.dart';
 
@@ -11,7 +8,7 @@ void main() {
     final storage = MemoryStorageService();
     await storage.init();
     // Build our app and trigger a frame.
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(storage: storage, initialLoggedIn: false));
     await tester.pumpAndSettle();
 
     // Verify that our medications are listed on the home screen.

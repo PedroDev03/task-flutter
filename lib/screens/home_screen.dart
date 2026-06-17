@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:awesome_notifications/awesome_notifications.dart';
+import 'package:provider/provider.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+import 'dart:convert';
+import 'package:flutter_markdown/flutter_markdown.dart';
+
 import '../database/storage_service.dart';
 import '../models/medicamento.dart';
 import '../models/historico_ingestao.dart';
 import '../services/auth_service.dart';
-import 'package:dio/dio.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:awesome_notifications/awesome_notifications.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import '../providers/medicamento_provider.dart';
 import 'cadastro_screen.dart';
 import 'login_screen.dart';
 
@@ -26,8 +27,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late Future<List<Medicamento>> _medicamentosFuture;
-  late Future<List<HistoricoIngestao>> _historicoFuture;
   final AuthService _authService = AuthService();
 
   @override
@@ -40,19 +39,33 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
     }
-    _loadDados();
-  }
-
-  void _loadDados() {
-    setState(() {
-      _medicamentosFuture = widget.storage.getMedicamentos();
-      _historicoFuture = widget.storage.getHistorico();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MedicamentoProvider>().loadDados();
     });
   }
 
+  bool _foiTomadoHoje(int medicamentoId, List<HistoricoIngestao> historico) {
+    final hoje = DateTime.now();
+    return historico.any((h) =>
+        h.medicamentoId == medicamentoId &&
+        h.dataHoraTomado.year == hoje.year &&
+        h.dataHoraTomado.month == hoje.month &&
+        h.dataHoraTomado.day == hoje.day);
+  }
+
   void _marcarTomado(int medicamentoId) async {
-    await widget.storage.registrarIngestao(medicamentoId, DateTime.now());
-    _loadDados();
+    try {
+      await context.read<MedicamentoProvider>().marcarTomado(medicamentoId);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao registrar dose: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   void _logout() async {
@@ -89,24 +102,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final prompt = 'Gere um resumo curto e objetivo, em português, sobre os efeitos e cuidados ao tomar $nomeMedicamento.';
       
-      final dio = Dio();
-      final response = await dio.post(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey',
-        data: {
-          "contents": [
-            {
-              "parts": [
-                {"text": prompt}
-              ]
-            }
-          ]
-        },
-        options: Options(headers: {
-          'Content-Type': 'application/json',
-        }),
-      );
-
-      final responseText = response.data['candidates']?[0]['content']['parts']?[0]['text'];
+      final model = GenerativeModel(model: 'gemini-3.5-flash', apiKey: apiKey);
+      final response = await model.generateContent([Content.text(prompt)]);
+      final responseText = response.text;
 
       if (mounted) {
         Navigator.pop(context); // Fechar loading
@@ -135,6 +133,167 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
+  }
+
+  void _verificarInteracoesIA() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final medicamentos = context.read<MedicamentoProvider>().medicamentos;
+      if (medicamentos.isEmpty || medicamentos.length == 1) {
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Adicione pelo menos dois medicamentos para verificar interações.')),
+          );
+        }
+        return;
+      }
+
+      final nomesMedicamentos = medicamentos.map((m) => m.nome).join(', ');
+
+      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+      if (apiKey.isEmpty) throw Exception('Chave da API do Gemini não configurada.');
+
+      final prompt = '''
+Analise os seguintes medicamentos: $nomesMedicamentos.
+Retorne um JSON estrito contendo possíveis interações medicamentosas.
+O JSON deve ter EXATAMENTE este formato:
+{
+  "interacoes": [
+    {
+      "medicamentos": ["Nome1", "Nome2"],
+      "gravidade": "Alta" ou "Média" ou "Baixa",
+      "descricao": "Explicação da interação"
+    }
+  ],
+  "recomendacao_geral": "Texto da recomendação"
+}
+Se não houver interações conhecidas, retorne a lista "interacoes" vazia. NÃO ADICIONE NENHUM TEXTO FORA DO JSON.
+''';
+
+      final model = GenerativeModel(model: 'gemini-3.5-flash', apiKey: apiKey);
+      final response = await model.generateContent([Content.text(prompt)]);
+      
+      String responseText = response.text ?? '';
+      responseText = responseText.replaceAll('```json', '').replaceAll('```', '').trim();
+
+      final Map<String, dynamic> jsonResponse = jsonDecode(responseText);
+      final List<dynamic> interacoes = jsonResponse['interacoes'] ?? [];
+      final String recomendacao = jsonResponse['recomendacao_geral'] ?? '';
+
+      if (mounted) {
+        Navigator.pop(context); // Fechar loading
+        _mostrarResultadoInteracoes(interacoes, recomendacao);
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Fechar loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao analisar interações: $e')),
+        );
+      }
+    }
+  }
+
+  void _mostrarResultadoInteracoes(List<dynamic> interacoes, String recomendacao) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Análise de Interações', style: GoogleFonts.outfit())),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (interacoes.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text('Nenhuma interação perigosa detectada.', style: GoogleFonts.inter())),
+                        ],
+                      ),
+                    )
+                  else
+                    ...interacoes.map((interacao) {
+                      final gravidade = interacao['gravidade'] ?? 'Baixa';
+                      Color corGravidade = Colors.blue;
+                      IconData iconeGravidade = Icons.info;
+                      
+                      if (gravidade.toString().toLowerCase().contains('alta')) {
+                        corGravidade = Colors.red;
+                        iconeGravidade = Icons.error;
+                      } else if (gravidade.toString().toLowerCase().contains('média') || gravidade.toString().toLowerCase().contains('media')) {
+                        corGravidade = Colors.orange;
+                        iconeGravidade = Icons.warning;
+                      }
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: corGravidade.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: corGravidade.withValues(alpha: 0.5)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(iconeGravidade, color: corGravidade, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '${interacao['medicamentos']?.join(' + ')}',
+                                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: corGravidade),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text('${interacao['descricao']}', style: GoogleFonts.inter()),
+                          ],
+                        ),
+                      );
+                    }),
+                  const SizedBox(height: 16),
+                  Text('Recomendação:', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(recomendacao, style: GoogleFonts.inter()),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fechar'))
+          ],
+        );
+      },
+    );
+  }
+
   void _editarMedicamento(Medicamento med) async {
     final result = await Navigator.push(
       context,
@@ -146,7 +305,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (result == true) {
-      _loadDados();
+      if (mounted) context.read<MedicamentoProvider>().loadDados();
     }
   }
 
@@ -165,15 +324,22 @@ class _HomeScreenState extends State<HomeScreen> {
             TextButton(
               onPressed: () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
+                final provider = context.read<MedicamentoProvider>();
                 Navigator.pop(context);
-                await widget.storage.deleteMedicamento(med.id);
-                if (!kIsWeb) {
-                  await AwesomeNotifications().cancel(med.id);
+                
+                try {
+                  await provider.excluirMedicamento(med.id);
+                  if (!kIsWeb) {
+                    await AwesomeNotifications().cancel(med.id);
+                  }
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(content: Text('"${med.nome}" foi excluído.')),
+                  );
+                } catch (e) {
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(content: Text('Erro ao excluir: $e')),
+                  );
                 }
-                _loadDados();
-                scaffoldMessenger.showSnackBar(
-                  SnackBar(content: Text('"${med.nome}" foi excluído.')),
-                );
               },
               child: const Text('Excluir', style: TextStyle(color: Colors.red)),
             ),
@@ -192,6 +358,13 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.teal.shade900),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.analytics_outlined),
+            tooltip: 'Analisar Interações',
+            onPressed: _verificarInteracoesIA,
+          ),
+        ],
       ),
       drawer: Drawer(
         child: ListView(
@@ -226,16 +399,41 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      body: FutureBuilder(
-        future: Future.wait([_medicamentosFuture, _historicoFuture]),
-        builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: Consumer<MedicamentoProvider>(
+        builder: (context, provider, child) {
+          if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Erro de Rede: ${snapshot.error}', textAlign: TextAlign.center));
+          } 
+          
+          if (provider.errorMessage != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.wifi_off, size: 64, color: Colors.redAccent),
+                  const SizedBox(height: 16),
+                  Text(
+                    provider.errorMessage!, 
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 16),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () => provider.loadDados(),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Tentar Novamente'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal.shade700,
+                      foregroundColor: Colors.white,
+                    ),
+                  )
+                ],
+              )
+            );
           }
 
-          final medicamentos = snapshot.data![0] as List<Medicamento>;
+          final medicamentos = provider.medicamentos;
+          final historico = provider.historico;
 
           if (medicamentos.isEmpty) {
             return Center(
@@ -259,6 +457,7 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: medicamentos.length,
             itemBuilder: (context, index) {
               final med = medicamentos[index];
+              final tomado = _foiTomadoHoje(med.id, historico);
 
               return Card(
                 elevation: 0,
@@ -272,13 +471,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.teal.shade50,
-                          shape: BoxShape.circle,
+                      CircleAvatar(
+                        backgroundColor: tomado ? Colors.green.shade100 : Colors.teal.shade50,
+                        radius: 28,
+                        child: Icon(
+                          tomado ? Icons.check_circle : Icons.medication,
+                          color: tomado ? Colors.green : Colors.teal.shade700,
+                          size: 32,
                         ),
-                        child: Icon(Icons.medication, color: Colors.teal.shade700, size: 32),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -297,58 +497,64 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.auto_awesome, color: Colors.amber),
-                            onPressed: () => _perguntarIA(med.nome),
-                            tooltip: 'Perguntar à IA',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                            onPressed: () async {
-                              await widget.storage.deleteMedicamento(med.id);
-                              _loadDados();
-                            },
-                          ),
-                        ],
-                      )
-                          child: const Text('Tomar'),
-                        )
-                      else
-                        const Padding(
-                          padding: EdgeInsets.only(right: 8.0),
-                          child: Text('Tomado', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                        ),
-                      const SizedBox(width: 8),
-                      PopupMenuButton<String>(
-                        icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
-                        onSelected: (value) {
-                          if (value == 'editar') {
-                            _editarMedicamento(med);
-                          } else if (value == 'excluir') {
-                            _confirmarExclusao(med);
-                          }
-                        },
-                        itemBuilder: (BuildContext context) => [
-                          const PopupMenuItem<String>(
-                            value: 'editar',
-                            child: Row(
-                              children: [
-                                Icon(Icons.edit, color: Colors.blue, size: 20),
-                                SizedBox(width: 8),
-                                Text('Editar'),
-                              ],
+                          if (!tomado)
+                            ElevatedButton(
+                              onPressed: () => _marcarTomado(med.id),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.teal.shade700,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              ),
+                              child: const Text('Tomar'),
+                            )
+                          else
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 8.0),
+                              child: Text('Tomado', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                             ),
-                          ),
-                          const PopupMenuItem<String>(
-                            value: 'excluir',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete, color: Colors.red, size: 20),
-                                SizedBox(width: 8),
-                                Text('Excluir'),
-                              ],
-                            ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.auto_awesome, color: Colors.amber),
+                                onPressed: () => _perguntarIA(med.nome),
+                                tooltip: 'Perguntar à IA',
+                              ),
+                              PopupMenuButton<String>(
+                                icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                                onSelected: (value) {
+                                  if (value == 'editar') {
+                                    _editarMedicamento(med);
+                                  } else if (value == 'excluir') {
+                                    _confirmarExclusao(med);
+                                  }
+                                },
+                                itemBuilder: (BuildContext context) => [
+                                  const PopupMenuItem<String>(
+                                    value: 'editar',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit, color: Colors.blue, size: 20),
+                                        SizedBox(width: 8),
+                                        Text('Editar'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem<String>(
+                                    value: 'excluir',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete, color: Colors.red, size: 20),
+                                        SizedBox(width: 8),
+                                        Text('Excluir'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -367,14 +573,12 @@ class _HomeScreenState extends State<HomeScreen> {
             MaterialPageRoute(builder: (context) => CadastroScreen(storage: widget.storage)),
           );
           if (result == true) {
-            _loadDados();
+            if (mounted) context.read<MedicamentoProvider>().loadDados();
           }
         },
         backgroundColor: Colors.teal.shade700,
         icon: const Icon(Icons.add, color: Colors.white),
         label: Text('Adicionar', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-        icon: const Icon(Icons.add),
-        label: const Text('Adicionar'),
       ),
     );
   }
