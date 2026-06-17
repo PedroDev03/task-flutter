@@ -9,6 +9,9 @@ import 'dio_client.dart';
 class SupabaseStorageService implements StorageService {
   final Dio _dio = DioClient().dio;
   final _secureStorage = const FlutterSecureStorage();
+  
+  // Fallback em memória para quando a tabela correspondente não existir no Supabase
+  final List<HistoricoIngestao> _localHistorico = [];
 
   @override
   bool get isPostgres => true;
@@ -125,14 +128,46 @@ class SupabaseStorageService implements StorageService {
 
   @override
   Future<List<HistoricoIngestao>> getHistorico() async {
-    // Para simplificar a demonstração, podemos puxar o histórico relacionado ou retornar mock
-    // Mas vamos tentar manter funcionando vazio se a tabela não existir, ou implementamos
-    return [];
+    try {
+      final response = await _dio.get(
+        '/rest/v1/historico_ingestao',
+        queryParameters: {
+          'select': '*',
+        },
+      );
+      final List<dynamic> data = response.data;
+      final remoteList = data.map((json) => HistoricoIngestao.fromJson(json)).toList();
+      return [...remoteList, ..._localHistorico];
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return List.from(_localHistorico);
+      }
+      throw _handleError(e);
+    }
   }
 
   @override
   Future<void> registrarIngestao(int medicamentoId, DateTime dataHoraTomado) async {
-    // Simulação ou chamada real se tivermos tabela
+    try {
+      await _dio.post(
+        '/rest/v1/historico_ingestao',
+        data: {
+          'medicamento_id': medicamentoId,
+          'data_hora_tomado': dataHoraTomado.toIso8601String(),
+        },
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        // Fallback local caso a tabela não exista no Supabase (para testes)
+        _localHistorico.add(HistoricoIngestao(
+          id: DateTime.now().millisecondsSinceEpoch,
+          medicamentoId: medicamentoId,
+          dataHoraTomado: dataHoraTomado,
+        ));
+        return;
+      }
+      throw _handleError(e);
+    }
   }
 
   @override

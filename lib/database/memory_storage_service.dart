@@ -41,6 +41,7 @@ class MemoryStorageService implements StorageService {
       frequencia: frequencia,
       horarioProgramado: horario,
       ativo: true,
+      dataCriacao: DateTime.now(),
     ));
   }
 
@@ -76,12 +77,13 @@ class MemoryStorageService implements StorageService {
       frequencia: frequencia,
       horarioProgramado: horarioProgramado,
       ativo: true,
+      dataCriacao: DateTime.now(),
     ));
     return id;
   }
 
   @override
-  Future<void> updateMedicamento(int id, String nome, String dosagem, String frequencia, String horarioProgramado) async {
+  Future<void> updateMedicamento(int id, String nome, String dosagem, String frequencia, String horarioProgramado, bool ativo) async {
     final index = _medicamentos.indexWhere((m) => m.id == id);
     if (index != -1) {
       final old = _medicamentos[index];
@@ -91,7 +93,8 @@ class MemoryStorageService implements StorageService {
         dosagem: dosagem,
         frequencia: frequencia,
         horarioProgramado: horarioProgramado,
-        ativo: old.ativo,
+        ativo: ativo,
+        dataCriacao: old.dataCriacao,
       );
     }
   }
@@ -108,6 +111,7 @@ class MemoryStorageService implements StorageService {
         frequencia: old.frequencia,
         horarioProgramado: old.horarioProgramado,
         ativo: ativo,
+        dataCriacao: old.dataCriacao,
       );
     }
   }

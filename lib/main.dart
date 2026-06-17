@@ -7,6 +7,10 @@ import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/supabase_storage_service.dart';
 import 'services/auth_service.dart';
+import 'database/storage_service.dart';
+
+import 'package:provider/provider.dart';
+import 'providers/medicamento_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,11 +43,16 @@ void main() async {
   final authService = AuthService();
   final isLoggedIn = await authService.isLoggedIn();
 
-  runApp(MyApp(storage: storage, initialLoggedIn: isLoggedIn));
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => MedicamentoProvider(storage: storage),
+      child: MyApp(storage: storage, initialLoggedIn: isLoggedIn),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  final SupabaseStorageService storage;
+  final StorageService storage;
   final bool initialLoggedIn;
 
   const MyApp({super.key, required this.storage, required this.initialLoggedIn});

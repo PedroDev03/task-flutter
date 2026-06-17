@@ -67,7 +67,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Card(
               elevation: 8,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               child: Padding(
                 padding: const EdgeInsets.all(32.0),
                 child: Column(

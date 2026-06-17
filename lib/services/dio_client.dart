@@ -35,10 +35,45 @@ class DioClient {
           return handler.next(options);
         },
         onError: (DioException e, handler) async {
-          // Tratar 401 (Token Expirado)
-          if (e.response?.statusCode == 401) {
-            // Tentar refresh token (simplificado para VA2)
-            // Em uma app real de produção faríamos refresh aqui antes de falhar
+          if (e.response?.statusCode == 401 && !e.requestOptions.path.contains('/auth/v1/token')) {
+            final refreshTokenStr = await _secureStorage.read(key: 'refresh_token');
+            if (refreshTokenStr != null && refreshTokenStr.isNotEmpty) {
+              try {
+                final refreshDio = Dio(BaseOptions(
+                  baseUrl: dotenv.env['SUPABASE_URL'] ?? '',
+                  headers: {'apikey': dotenv.env['SUPABASE_ANON_KEY'] ?? '', 'Content-Type': 'application/json'},
+                ));
+                final refreshResponse = await refreshDio.post(
+                  '/auth/v1/token?grant_type=refresh_token',
+                  data: {'refresh_token': refreshTokenStr},
+                );
+                
+                final newAccess = refreshResponse.data['access_token'];
+                final newRefresh = refreshResponse.data['refresh_token'];
+                
+                if (newAccess != null) {
+                  await _secureStorage.write(key: 'access_token', value: newAccess);
+                  await _secureStorage.write(key: 'refresh_token', value: newRefresh);
+                  
+                  // Refazer a request original
+                  e.requestOptions.headers['Authorization'] = 'Bearer $newAccess';
+                  final cloneReq = await dio.request(
+                    e.requestOptions.path,
+                    options: Options(
+                      method: e.requestOptions.method,
+                      headers: e.requestOptions.headers,
+                    ),
+                    data: e.requestOptions.data,
+                    queryParameters: e.requestOptions.queryParameters,
+                  );
+                  return handler.resolve(cloneReq);
+                }
+              } catch (_) {
+                // Falhou o refresh token, limpar local
+                await _secureStorage.delete(key: 'access_token');
+                await _secureStorage.delete(key: 'refresh_token');
+              }
+            }
           }
           return handler.next(e);
         },

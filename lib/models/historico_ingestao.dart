@@ -20,4 +20,12 @@ class HistoricoIngestao {
       dataHoraTomado: map['data_hora_tomado'] as DateTime,
     );
   }
+
+  factory HistoricoIngestao.fromJson(Map<String, dynamic> json) {
+    return HistoricoIngestao(
+      id: json['id'] as int,
+      medicamentoId: json['medicamento_id'] as int,
+      dataHoraTomado: DateTime.parse(json['data_hora_tomado'] as String),
+    );
+  }
 }

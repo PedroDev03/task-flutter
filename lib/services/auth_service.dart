@@ -47,6 +47,23 @@ class AuthService {
     return token != null && token.isNotEmpty;
   }
 
+  Future<bool> refreshToken() async {
+    try {
+      final refreshTokenStr = await _secureStorage.read(key: 'refresh_token');
+      if (refreshTokenStr == null || refreshTokenStr.isEmpty) return false;
+
+      final response = await _dio.post(
+        '/auth/v1/token?grant_type=refresh_token',
+        data: {'refresh_token': refreshTokenStr},
+      );
+      await _saveTokens(response.data);
+      return true;
+    } catch (_) {
+      await logout();
+      return false;
+    }
+  }
+
   Future<void> _saveTokens(Map<String, dynamic> data) async {
     final accessToken = data['access_token'];
     final refreshToken = data['refresh_token'];

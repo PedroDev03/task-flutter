@@ -66,19 +66,26 @@ class _CadastroScreenState extends State<CadastroScreen> {
       showDialog(context: context, builder: (_) => const Center(child: CircularProgressIndicator()));
       
       try {
-        await widget.storage.insertMedicamento(
-      int id;
-      final isEditing = widget.medicamento != null;
-      
-      if (isEditing) {
-        id = widget.medicamento!.id;
-        await widget.storage.updateMedicamento(
-          id,
-          _nomeController.text,
-          _dosagemController.text,
-          _frequenciaSelecionada,
-          horarioStr,
-        );
+        final isEditing = widget.medicamento != null;
+        
+        if (isEditing) {
+          int id = widget.medicamento!.id;
+          await widget.storage.updateMedicamento(
+            id,
+            _nomeController.text,
+            _dosagemController.text,
+            _frequenciaSelecionada,
+            horarioStr,
+            true,
+          );
+        } else {
+          await widget.storage.insertMedicamento(
+            _nomeController.text,
+            _dosagemController.text,
+            _frequenciaSelecionada,
+            horarioStr,
+          );
+        }
 
         final int h = _horarioSelecionado.hour;
         final int m = _horarioSelecionado.minute;
@@ -144,12 +151,10 @@ class _CadastroScreenState extends State<CadastroScreen> {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: Text('Novo Medicamento', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.teal.shade900)),
+        title: Text(isEditing ? 'Editar Medicamento' : 'Novo Medicamento', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.teal.shade900)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.teal.shade900),
-        title: Text(isEditing ? 'Editar Medicamento' : 'Novo Medicamento'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -253,11 +258,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 4,
                 ),
-                child: Text('Salvar Medicamento', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold)),
-                child: Text(
-                  isEditing ? 'Salvar Alterações' : 'Salvar Medicamento',
-                  style: const TextStyle(fontSize: 16),
-                ),
+                child: Text(isEditing ? 'Salvar Alterações' : 'Salvar Medicamento', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
