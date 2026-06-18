@@ -11,6 +11,7 @@ import 'database/storage_service.dart';
 
 import 'package:provider/provider.dart';
 import 'providers/medicamento_provider.dart';
+import 'providers/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,8 +45,11 @@ void main() async {
   final isLoggedIn = await authService.isLoggedIn();
 
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => MedicamentoProvider(storage: storage),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => MedicamentoProvider(storage: storage)),
+        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+      ],
       child: MyApp(storage: storage, initialLoggedIn: isLoggedIn),
     ),
   );
@@ -59,17 +63,34 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return MaterialApp(
       title: 'Lembrete de Medicamentos',
       debugShowCheckedModeBanner: false,
+      themeMode: themeProvider.themeMode,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.teal,
           primary: Colors.teal.shade700,
           secondary: Colors.tealAccent.shade700,
         ),
-        textTheme: GoogleFonts.outfitTextTheme(Theme.of(context).textTheme),
+        textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme),
         useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+        ),
+      ),
+      darkTheme: ThemeData.dark().copyWith(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.teal,
+          brightness: Brightness.dark,
+          primary: Colors.teal.shade300,
+          secondary: Colors.tealAccent.shade200,
+        ),
+        textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
         appBarTheme: const AppBarTheme(
           centerTitle: true,
           elevation: 0,

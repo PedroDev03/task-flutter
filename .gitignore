@@ -46,3 +46,10 @@ app.*.map.json
 
 # Env
 .env
+Documento de Especificação da Avaliação 2 (VA2).md
+
+# Temporary / Test Files
+list_models.dart
+list_models.py
+test_api_script.dart
+payload.json

@@ -16,6 +16,7 @@ import '../services/auth_service.dart';
 import '../providers/medicamento_provider.dart';
 import 'cadastro_screen.dart';
 import 'login_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final StorageService storage;
@@ -102,7 +103,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final prompt = 'Gere um resumo curto e objetivo, em português, sobre os efeitos e cuidados ao tomar $nomeMedicamento.';
       
-      final model = GenerativeModel(model: 'gemini-3.5-flash', apiKey: apiKey);
+      final model = GenerativeModel(
+        model: 'gemini-3.5-flash', 
+        apiKey: apiKey,
+      );
       final response = await model.generateContent([Content.text(prompt)]);
       final responseText = response.text;
 
@@ -176,7 +180,10 @@ O JSON deve ter EXATAMENTE este formato:
 Se não houver interações conhecidas, retorne a lista "interacoes" vazia. NÃO ADICIONE NENHUM TEXTO FORA DO JSON.
 ''';
 
-      final model = GenerativeModel(model: 'gemini-3.5-flash', apiKey: apiKey);
+      final model = GenerativeModel(
+        model: 'gemini-3.5-flash', 
+        apiKey: apiKey,
+      );
       final response = await model.generateContent([Content.text(prompt)]);
       
       String responseText = response.text ?? '';
@@ -351,13 +358,15 @@ Se não houver interações conhecidas, retorne a lista "interacoes" vazia. NÃO
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: Text('Medicamentos do Dia', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.teal.shade900)),
+        title: Text('Medicamentos do Dia', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: colorScheme.primary)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.teal.shade900),
+        iconTheme: IconThemeData(color: colorScheme.primary),
         actions: [
           IconButton(
             icon: const Icon(Icons.analytics_outlined),
@@ -388,6 +397,17 @@ Se não houver interações conhecidas, retorne a lista "interacoes" vazia. NÃO
               onTap: () {
                 Navigator.pop(context);
                 _abrirMapas();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings, color: Colors.grey),
+              title: const Text('Configurações'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                );
               },
             ),
             const Divider(),
@@ -464,9 +484,8 @@ Se não houver interações conhecidas, retorne a lista "interacoes" vazia. NÃO
                 margin: const EdgeInsets.symmetric(vertical: 8),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(color: Colors.teal.shade100, width: 1),
+                  side: BorderSide(color: colorScheme.outlineVariant, width: 1),
                 ),
-                color: Colors.white,
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
@@ -487,12 +506,12 @@ Se não houver interações conhecidas, retorne a lista "interacoes" vazia. NÃO
                           children: [
                             Text(
                               med.nome,
-                              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.teal.shade900),
+                              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
                             ),
                             const SizedBox(height: 4),
-                            Text('${med.dosagem} • ${med.frequencia}', style: GoogleFonts.inter(color: Colors.grey.shade600)),
+                            Text('${med.dosagem} • ${med.frequencia}', style: GoogleFonts.inter(color: colorScheme.onSurfaceVariant)),
                             const SizedBox(height: 4),
-                            Text('Horário: ${med.horarioProgramado}', style: GoogleFonts.inter(fontWeight: FontWeight.w500, color: Colors.teal.shade800)),
+                            Text('Horário: ${med.horarioProgramado}', style: GoogleFonts.inter(fontWeight: FontWeight.w500, color: colorScheme.primary)),
                           ],
                         ),
                       ),
