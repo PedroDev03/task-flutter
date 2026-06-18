@@ -35,8 +35,16 @@ class _CadastroScreenState extends State<CadastroScreen> {
   @override
   void initState() {
     super.initState();
-    // Integração: capturar relógio exato do computador/dispositivo ao abrir
     _horarioSelecionado = TimeOfDay.now();
+    if (widget.medicamento != null) {
+      _nomeController.text = widget.medicamento!.nome;
+      _dosagemController.text = widget.medicamento!.dosagem;
+      _frequenciaSelecionada = widget.medicamento!.frequencia;
+      final partesHora = widget.medicamento!.horarioProgramado.split(':');
+      if (partesHora.length == 2) {
+        _horarioSelecionado = TimeOfDay(hour: int.tryParse(partesHora[0]) ?? 0, minute: int.tryParse(partesHora[1]) ?? 0);
+      }
+    }
   }
 
   @override
@@ -76,7 +84,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
             _dosagemController.text,
             _frequenciaSelecionada,
             horarioStr,
-            true,
+            widget.medicamento!.ativo,
           );
         } else {
           await widget.storage.insertMedicamento(
