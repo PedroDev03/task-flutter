@@ -18,6 +18,56 @@ class MedicamentoProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  // Filtros
+  String _filtroStatus = 'Todos'; // 'Todos', 'Pendentes', 'Tomados'
+  String _filtroPesquisa = ''; // Vazio significa sem filtro de pesquisa
+  DateTime? _filtroData; // null significa data atual / sem filtro estrito
+
+  String get filtroStatus => _filtroStatus;
+  String get filtroPesquisa => _filtroPesquisa;
+  DateTime? get filtroData => _filtroData;
+
+  void setFiltroStatus(String status) {
+    _filtroStatus = status;
+    notifyListeners();
+  }
+
+  void setFiltroPesquisa(String termo) {
+    _filtroPesquisa = termo;
+    notifyListeners();
+  }
+
+  void setFiltroData(DateTime? data) {
+    _filtroData = data;
+    notifyListeners();
+  }
+
+  List<Medicamento> get medicamentosFiltrados {
+    return _medicamentos.where((med) {
+      // 1. Filtro de Pesquisa por Nome
+      if (_filtroPesquisa.isNotEmpty) {
+        if (!med.nome.toLowerCase().contains(_filtroPesquisa.toLowerCase())) {
+          return false;
+        }
+      }
+      
+      // 2. Filtro de Status
+      if (_filtroStatus != 'Todos') {
+        final targetDate = _filtroData ?? DateTime.now();
+        final bool tomado = _historico.any((h) =>
+            h.medicamentoId == med.id &&
+            h.dataHoraTomado.year == targetDate.year &&
+            h.dataHoraTomado.month == targetDate.month &&
+            h.dataHoraTomado.day == targetDate.day);
+
+        if (_filtroStatus == 'Pendentes' && tomado) return false;
+        if (_filtroStatus == 'Tomados' && !tomado) return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
   Future<void> loadDados() async {
     _isLoading = true;
     _errorMessage = null;

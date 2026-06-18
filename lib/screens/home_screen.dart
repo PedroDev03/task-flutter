@@ -361,6 +361,83 @@ Se não houver interações conhecidas, retorne a lista "interacoes" vazia. NÃO
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    Widget _buildFilterBar(BuildContext context, MedicamentoProvider provider) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              ActionChip(
+                avatar: Icon(Icons.calendar_today, size: 16, color: colorScheme.primary),
+                label: Text(provider.filtroData == null 
+                    ? 'Hoje' 
+                    : '${provider.filtroData!.day.toString().padLeft(2, '0')}/${provider.filtroData!.month.toString().padLeft(2, '0')}/${provider.filtroData!.year}', style: GoogleFonts.inter()),
+                onPressed: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: provider.filtroData ?? DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100),
+                  );
+                  if (date != null) provider.setFiltroData(date);
+                },
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: provider.filtroStatus,
+                    icon: Icon(Icons.arrow_drop_down, color: colorScheme.primary),
+                    style: GoogleFonts.inter(color: colorScheme.onSurface),
+                    items: ['Todos', 'Pendentes', 'Tomados'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                    onChanged: (val) => provider.setFiltroStatus(val!),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 200,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: TextField(
+                  onChanged: (val) => provider.setFiltroPesquisa(val),
+                  style: GoogleFonts.inter(color: colorScheme.onSurface, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Pesquisar medicamento...',
+                    hintStyle: GoogleFonts.inter(color: colorScheme.onSurfaceVariant, fontSize: 14),
+                    prefixIcon: Icon(Icons.search, color: colorScheme.primary, size: 20),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              if (provider.filtroData != null || provider.filtroStatus != 'Todos' || provider.filtroPesquisa.isNotEmpty) ...[
+                const SizedBox(width: 12),
+                ActionChip(
+                  backgroundColor: Colors.red.shade50,
+                  label: Text('Limpar', style: GoogleFonts.inter(color: Colors.red.shade700)),
+                  onPressed: () {
+                    provider.setFiltroData(null);
+                    provider.setFiltroStatus('Todos');
+                    provider.setFiltroPesquisa('');
+                  },
+                ),
+              ]
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Medicamentos do Dia', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: colorScheme.primary)),
@@ -452,32 +529,37 @@ Se não houver interações conhecidas, retorne a lista "interacoes" vazia. NÃO
             );
           }
 
-          final medicamentos = provider.medicamentos;
+          final medicamentos = provider.medicamentosFiltrados;
           final historico = provider.historico;
 
+          Widget content;
           if (medicamentos.isEmpty) {
-            return Center(
+            content = Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.medication_liquid_outlined, size: 80, color: Colors.teal.shade200),
                   const SizedBox(height: 16),
                   Text(
-                    'Nenhum medicamento\ncadastrado.',
+                    'Nenhum medicamento\nencontrado.',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(fontSize: 18, color: Colors.grey.shade600),
                   ),
                 ],
               ),
             );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: medicamentos.length,
-            itemBuilder: (context, index) {
-              final med = medicamentos[index];
-              final tomado = _foiTomadoHoje(med.id, historico);
+          } else {
+            content = ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: medicamentos.length,
+              itemBuilder: (context, index) {
+                final med = medicamentos[index];
+                final targetDate = provider.filtroData ?? DateTime.now();
+                final tomado = historico.any((h) =>
+                    h.medicamentoId == med.id &&
+                    h.dataHoraTomado.year == targetDate.year &&
+                    h.dataHoraTomado.month == targetDate.month &&
+                    h.dataHoraTomado.day == targetDate.day);
 
               return Card(
                 elevation: 0,
@@ -582,6 +664,14 @@ Se não houver interações conhecidas, retorne a lista "interacoes" vazia. NÃO
                 ),
               );
             },
+          );
+          }
+          
+          return Column(
+            children: [
+              _buildFilterBar(context, provider),
+              Expanded(child: content),
+            ],
           );
         },
       ),
