@@ -8,8 +8,10 @@ import 'dio_client.dart';
 
 class SupabaseStorageService implements StorageService {
   final Dio _dio = DioClient().dio;
-  final _secureStorage = const FlutterSecureStorage();
-  
+  final _secureStorage = const FlutterSecureStorage(
+    webOptions: WebOptions(dbName: 'secure_storage', publicKey: 'secret_key'),
+  );
+
   // Fallback em memória para quando a tabela correspondente não existir no Supabase
   final List<HistoricoIngestao> _localHistorico = [];
 
@@ -33,12 +35,9 @@ class SupabaseStorageService implements StorageService {
 
       final response = await _dio.get(
         '/rest/v1/medicamentos',
-        queryParameters: {
-          'usuario_id': 'eq.$userId',
-          'select': '*',
-        },
+        queryParameters: {'usuario_id': 'eq.$userId', 'select': '*'},
       );
-      
+
       final List<dynamic> data = response.data;
       return data.map((json) => Medicamento.fromJson(json)).toList();
     } on DioException catch (e) {
@@ -47,7 +46,12 @@ class SupabaseStorageService implements StorageService {
   }
 
   @override
-  Future<void> insertMedicamento(String nome, String dosagem, String frequencia, String horarioProgramado) async {
+  Future<void> insertMedicamento(
+    String nome,
+    String dosagem,
+    String frequencia,
+    String horarioProgramado,
+  ) async {
     try {
       final userId = await _getUserId();
       if (userId == null) throw Exception("Usuário não logado");
@@ -69,15 +73,19 @@ class SupabaseStorageService implements StorageService {
   }
 
   @override
-  Future<void> updateMedicamento(int id, String nome, String dosagem, String frequencia, String horarioProgramado, bool ativo) async {
+  Future<void> updateMedicamento(
+    int id,
+    String nome,
+    String dosagem,
+    String frequencia,
+    String horarioProgramado,
+    bool ativo,
+  ) async {
     try {
       final userId = await _getUserId();
       await _dio.patch(
         '/rest/v1/medicamentos',
-        queryParameters: {
-          'id': 'eq.$id',
-          'usuario_id': 'eq.$userId',
-        },
+        queryParameters: {'id': 'eq.$id', 'usuario_id': 'eq.$userId'},
         data: {
           'nome': nome,
           'dosagem': dosagem,
@@ -97,13 +105,8 @@ class SupabaseStorageService implements StorageService {
       final userId = await _getUserId();
       await _dio.patch(
         '/rest/v1/medicamentos',
-        queryParameters: {
-          'id': 'eq.$id',
-          'usuario_id': 'eq.$userId',
-        },
-        data: {
-          'ativo': ativo,
-        },
+        queryParameters: {'id': 'eq.$id', 'usuario_id': 'eq.$userId'},
+        data: {'ativo': ativo},
       );
     } on DioException catch (e) {
       throw _handleError(e);
@@ -116,10 +119,7 @@ class SupabaseStorageService implements StorageService {
       final userId = await _getUserId();
       await _dio.delete(
         '/rest/v1/medicamentos',
-        queryParameters: {
-          'id': 'eq.$id',
-          'usuario_id': 'eq.$userId',
-        },
+        queryParameters: {'id': 'eq.$id', 'usuario_id': 'eq.$userId'},
       );
     } on DioException catch (e) {
       throw _handleError(e);
@@ -131,12 +131,12 @@ class SupabaseStorageService implements StorageService {
     try {
       final response = await _dio.get(
         '/rest/v1/historico_ingestao',
-        queryParameters: {
-          'select': '*',
-        },
+        queryParameters: {'select': '*'},
       );
       final List<dynamic> data = response.data;
-      final remoteList = data.map((json) => HistoricoIngestao.fromJson(json)).toList();
+      final remoteList = data
+          .map((json) => HistoricoIngestao.fromJson(json))
+          .toList();
       return [...remoteList, ..._localHistorico];
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
@@ -147,7 +147,10 @@ class SupabaseStorageService implements StorageService {
   }
 
   @override
-  Future<void> registrarIngestao(int medicamentoId, DateTime dataHoraTomado) async {
+  Future<void> registrarIngestao(
+    int medicamentoId,
+    DateTime dataHoraTomado,
+  ) async {
     try {
       await _dio.post(
         '/rest/v1/historico_ingestao',
@@ -159,11 +162,13 @@ class SupabaseStorageService implements StorageService {
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
         // Fallback local caso a tabela não exista no Supabase (para testes)
-        _localHistorico.add(HistoricoIngestao(
-          id: DateTime.now().millisecondsSinceEpoch,
-          medicamentoId: medicamentoId,
-          dataHoraTomado: dataHoraTomado,
-        ));
+        _localHistorico.add(
+          HistoricoIngestao(
+            id: DateTime.now().millisecondsSinceEpoch,
+            medicamentoId: medicamentoId,
+            dataHoraTomado: dataHoraTomado,
+          ),
+        );
         return;
       }
       throw _handleError(e);
@@ -176,12 +181,17 @@ class SupabaseStorageService implements StorageService {
   }
 
   @override
-  Future<void> registrarSintoma(String descricao, int intensidade, DateTime dataHoraRegistro) async {
+  Future<void> registrarSintoma(
+    String descricao,
+    int intensidade,
+    DateTime dataHoraRegistro,
+  ) async {
     // Mock ou implementar
   }
 
   String _handleError(DioException e) {
-    if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout) {
       return 'Tempo esgotado. Verifique sua conexão com a internet.';
     }
     if (e.response != null) {
