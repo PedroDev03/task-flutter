@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import 'privacy_security_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -88,7 +89,12 @@ class SettingsScreen extends StatelessWidget {
                   title: Text('Privacidade e Segurança', style: GoogleFonts.inter()),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
-                    // Implementar ação
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PrivacySecurityScreen(),
+                      ),
+                    );
                   },
                 ),
                 const Divider(height: 1),
