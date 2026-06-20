@@ -4,7 +4,9 @@ import 'dio_client.dart';
 
 class AuthService {
   final Dio _dio = DioClient().dio;
-  final _secureStorage = const FlutterSecureStorage();
+  final _secureStorage = const FlutterSecureStorage(
+    webOptions: WebOptions(dbName: 'secure_storage', publicKey: 'secret_key'),
+  );
 
   Future<void> signUp(String email, String password) async {
     try {
@@ -69,14 +71,19 @@ class AuthService {
     final refreshToken = data['refresh_token'];
     final userId = data['user']?['id'];
 
-    if (accessToken != null) await _secureStorage.write(key: 'access_token', value: accessToken);
-    if (refreshToken != null) await _secureStorage.write(key: 'refresh_token', value: refreshToken);
-    if (userId != null) await _secureStorage.write(key: 'user_id', value: userId);
+    if (accessToken != null)
+      await _secureStorage.write(key: 'access_token', value: accessToken);
+    if (refreshToken != null)
+      await _secureStorage.write(key: 'refresh_token', value: refreshToken);
+    if (userId != null)
+      await _secureStorage.write(key: 'user_id', value: userId);
   }
 
   String _handleError(DioException e) {
     if (e.response != null) {
-      return e.response?.data['error_description'] ?? e.response?.data['msg'] ?? 'Erro desconhecido';
+      return e.response?.data['error_description'] ??
+          e.response?.data['msg'] ??
+          'Erro desconhecido';
     }
     return 'Erro de conexão. Verifique sua internet.';
   }
