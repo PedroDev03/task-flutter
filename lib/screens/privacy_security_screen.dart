@@ -64,6 +64,25 @@ class PrivacySecurityScreen extends StatelessWidget {
                 '• Baixe as dependências: flutter pub get\n\n'
                 '• Crie o arquivo .env com as credenciais.\n\n'
                 '• Execute o projeto no Chrome: flutter run -d chrome', colorScheme),
+            const SizedBox(height: 24),
+
+            _buildSectionTitle('6. Pipeline de Deploy e Gerenciamento (Dokploy)', colorScheme),
+            _buildBodyText('A gestão do ambiente de produção é realizada através do Dokploy, operando sob uma instância AWS EC2. As configurações aplicadas incluem:\n\n'
+                '• CI/CD Automático: O Dokploy está integrado ao repositório via Webhook. A cada commit (push) na branch principal, o servidor inicia automaticamente o processo de build da nova imagem Docker.\n\n'
+                '• Injeção de Variáveis: As chaves do Supabase e do Gemini (.env) foram injetadas de forma segura na aba Environment do painel do Dokploy, isolando credenciais sensíveis do código-fonte público.\n\n'
+                '• Exposição e SSL: A aplicação foi exposta pela porta 80 do Nginx interno para o tráfego externo e vinculada a um domínio gerado dinamicamente (sslip.io), garantindo criptografia HTTPS automática para habilitar as funções de segurança do navegador na Web.', colorScheme),
+            const SizedBox(height: 24),
+
+            _buildSectionTitle('7. Roteiro Básico de Configuração da Infraestrutura (Dokploy)', colorScheme),
+            _buildBodyText('Para reproduzir o ambiente de produção em uma nova máquina virtual (Ubuntu/Debian), o passo a passo da infraestrutura consiste em:\n\n'
+                '• Instalação do Dokploy: Executar o script oficial de instalação no terminal do servidor via SSH:\n'
+                'curl -sSL https://dokploy.com/install.sh | sh\n\n'
+                '• Acesso e Git Provider: Acessar o painel web (porta 3000), criar a conta de administrador e, no menu Settings, vincular a conta do GitHub (Git Provider) para permitir a leitura do repositório.\n\n'
+                '• Criação do Projeto: No painel principal, criar um novo Project e, em seguida, adicionar uma nova Application.\n\n'
+                '• Aba General (Configuração do Repositório): Selecionar o repositório do projeto, a branch (main), definir o Build Type como Dockerfile e mapear a porta interna para 80.\n\n'
+                '• Aba Environment (Variáveis de Ambiente): Adicionar as mesmas variáveis do arquivo .env local (SUPABASE_URL, SUPABASE_ANON_KEY e GEMINI_API_KEY) diretamente na interface do Dokploy para proteger as credenciais.\n\n'
+                '• Aba Domains (Domínio e SSL): Cadastrar o endereço de acesso público (IP associado ao formato sslip.io) e habilitar a chave do Let\'s Encrypt para gerar o certificado HTTPS automaticamente.\n\n'
+                '• Deploy: Clicar no botão Deploy para o Dokploy baixar o código, compilar a imagem via Dockerfile e iniciar o contêiner do Nginx.', colorScheme),
             const SizedBox(height: 32),
           ],
         ),
